@@ -117,4 +117,7 @@ node index.js
 - **Backup Automático**: Cria backups do histórico a cada 12 horas
 - **Gestão de Arquivos**: Utiliza arquivos temporários para evitar corrupção de dados
 - **Limitação de Uso**: Gerencia o uso de tokens da API para evitar custos excessivos
-"# ZapIA" 
+
+## Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
