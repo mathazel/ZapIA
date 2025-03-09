@@ -32,7 +32,7 @@ Este bot utiliza a biblioteca `@whiskeysockets/baileys` para se conectar ao What
 
 - Node.js (v14 ou superior)
 - Conta na API da OpenAI
-- Chave de API do OpenWeather
+- Chave de API do OpenWeather (opcional)
 - Acesso à internet
 
 ## Configuração
