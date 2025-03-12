@@ -1,7 +1,7 @@
-const whatsapp = require('./src/whatsapp');
-const conversation = require('./src/conversation');
+const whatsapp = require('./src/services/whatsapp');
+const conversation = require('./src/core/conversation');
 const fileManager = require('./src/utils/fileManager');
-const { processedMessagesFile } = require('./src/config');
+const { processedMessagesFile } = require('./src/config/config');
 
 // Inicialização
 (async () => {

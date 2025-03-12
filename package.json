@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "async": "^3.2.6",
+    "async-lock": "^1.4.1",
+    "axios": "^1.8.3",
+    "bull": "^4.16.5",
+    "cache-manager": "^6.4.1",
+    "dotenv": "^16.4.7",
+    "fetch": "^1.1.0",
+    "msnodesqlv8": "^4.5.0",
+    "mssql": "^11.0.1",
+    "openai": "^4.87.3",
+    "p-queue": "^8.1.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "sinon": "^15.0.0",
+    "tape": "^5.9.0"
+  }
+}
