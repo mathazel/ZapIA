@@ -113,7 +113,7 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
     try {
         // Sanitiza todos os inputs
         const contextId = Sanitizer.sanitizeWhatsAppId(chatId);
-        const sanitizedText = Sanitizer.sanitizeMessage(text);
+        let sanitizedText = Sanitizer.sanitizeMessage(text); // Mudado para let
         const sanitizedSender = Sanitizer.sanitizeWhatsAppId(sender);
         
         // Exemplo de como os caracteres especiais são tratados:
@@ -133,9 +133,7 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
             
             if (!isMentioned && !isReplyToBot) return;
             
-            if (isMentioned) {
-                sanitizedText = utils.extractMessageWithoutMention(sanitizedText);
-            }
+            sanitizedText = utils.extractMessageWithoutMention(sanitizedText);
         }
 
         // Verifica se é um comando
