@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const backupService = require('../services/backupService');
 
 class FileManager {
     constructor() {
@@ -58,32 +59,7 @@ class FileManager {
      * @returns {Promise<void>}
      */
     async createIncrementalBackup(filePath) {
-        const backupPath = `${filePath}.bak`;
-        
-        try {
-            // Verifica se arquivo original existe
-            await fs.access(filePath);
-            
-            // Verifica se backup existe e compara conteúdos
-            try {
-                const [originalContent, backupContent] = await Promise.all([
-                    fs.readFile(filePath, 'utf8'),
-                    fs.readFile(backupPath, 'utf8')
-                ]);
-
-                if (originalContent === backupContent) {
-                    return; // Conteúdo idêntico, não precisa backup
-                }
-            } catch {
-                // Backup não existe ou não pode ser lido
-            }
-
-            // Cria backup
-            await fs.copyFile(filePath, backupPath);
-            console.log(`Backup criado: ${backupPath}`);
-        } catch (error) {
-            this.handleFileError(error, filePath);
-        }
+        await backupService.createBackup(filePath);
     }
 
     /**
@@ -92,17 +68,7 @@ class FileManager {
      * @returns {Promise<void>}
      */
     async removeBackup(filePath) {
-        const backupPath = `${filePath}.bak`;
-        
-        try {
-            await fs.access(backupPath);
-            await fs.unlink(backupPath);
-            console.log(`Backup removido: ${backupPath}`);
-        } catch (error) {
-            if (error.code !== 'ENOENT') { // Ignora erro se arquivo não existe
-                this.handleFileError(error, backupPath);
-            }
-        }
+        await backupService.removeBackup(filePath);
     }
 
     /**

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const AsyncLock = require('async-lock');
 const conversationSummarizer = require('../services/conversationSummarizer');
+const backupService = require('../services/backupService');
 const { 
     conversationHistoryFile, 
     MAX_HISTORY_MESSAGES,
@@ -68,15 +69,15 @@ const conversationManager = {
     },
     
     // Restaurar de backup
-    tryRestoreFromBackup: function() {
-        const backupFile = `${conversationHistoryFile}.bak`;
-        if (fs.existsSync(backupFile)) {
+    tryRestoreFromBackup: async function() {
+        const restored = await backupService.restoreFromBackup(conversationHistoryFile);
+        if (restored) {
             try {
-                const historyData = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
+                const historyData = JSON.parse(await fs.promises.readFile(conversationHistoryFile, 'utf8'));
                 this.history = historyData;
-                console.log(`Histórico restaurado do backup`);
+                console.log('Histórico restaurado do backup');
             } catch (error) {
-                console.error('Erro ao restaurar do backup:', error);
+                console.error('Erro ao carregar backup restaurado:', error);
                 this.history = {};
             }
         } else {
@@ -85,22 +86,8 @@ const conversationManager = {
     },
     
     // Criar backup do histórico
-    createBackup: function() {
-        const now = Date.now();
-        // Evita backups muito frequentes (mínimo 1 hora entre backups)
-        if (now - this.lastBackupTime < 3600000) {
-            return;
-        }
-
-        try {
-            if (fs.existsSync(conversationHistoryFile)) {
-                fs.copyFileSync(conversationHistoryFile, `${conversationHistoryFile}.bak`);
-                this.lastBackupTime = now;
-                console.log('Backup do histórico criado');
-            }
-        } catch (error) {
-            console.error('Erro ao criar backup:', error);
-        }
+    createBackup: async function() {
+        await backupService.createBackup(conversationHistoryFile);
     },
     
     // Adicionar mensagem ao histórico
@@ -241,6 +228,9 @@ const scheduleCleanup = () => {
         process.exit(0);
     });
 };
+
+// Agendar backup periódico
+backupService.scheduleBackup(conversationHistoryFile, BACKUP_INTERVAL);
 
 module.exports = {
     addMessage: conversationManager.addMessage.bind(conversationManager),
