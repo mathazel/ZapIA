@@ -1,6 +1,5 @@
 const fs = require('fs').promises;
 const path = require('path');
-const backupService = require('../services/backupService');
 
 class FileManager {
     constructor() {
@@ -52,25 +51,6 @@ class FileManager {
         this.initPromises.set(filePath, initPromise);
         return initPromise;
     }
-
-    /**
-     * Gerencia backups incrementais
-     * @param {string} filePath - Caminho do arquivo original
-     * @returns {Promise<void>}
-     */
-    async createIncrementalBackup(filePath) {
-        await backupService.createBackup(filePath);
-    }
-
-    /**
-     * Remove arquivos de backup
-     * @param {string} filePath - Caminho do arquivo original
-     * @returns {Promise<void>}
-     */
-    async removeBackup(filePath) {
-        await backupService.removeBackup(filePath);
-    }
-
     /**
      * Tratamento centralizado de erros de arquivo
      * @param {Error} error - Erro ocorrido
@@ -86,15 +66,6 @@ class FileManager {
         };
 
         console.error('Erro em operação de arquivo:', errorDetails);
-
-        switch (error.code) {
-            case 'EACCES':
-                throw new Error(`Sem permissão para acessar: ${filePath}`);
-            case 'ENOSPC':
-                throw new Error('Sem espaço em disco');
-            default:
-                throw error;
-        }
     }
 }
 

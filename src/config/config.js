@@ -16,7 +16,7 @@ const validateEnvVars = (requiredVars) => {
 validateEnvVars(['BOT_NUMBER', 'BOT_NAME', 'OPENAI_API_KEY']);
 
 // Definir caminhos base
-const rootDir = path.join(__dirname, '..', '..'); // Subindo dois níveis para chegar na raiz
+const rootDir = path.join(__dirname, '..', '..');
 const dataDir = path.join(rootDir, 'data');
 const authDir = path.join(rootDir, 'auth');
 
@@ -42,20 +42,14 @@ module.exports = {
     openaiModel: process.env.OPENAI_MODEL,
     
     // Caminhos de arquivos
-    processedMessagesFile: path.join(dataDir, 'processedMessages.json'),
     conversationHistoryFile: path.join(dataDir, 'conversationHistory.json'),
     authPath: authDir,
 
-    MAX_RECONNECT_ATTEMPTS: 5,
-    
-    // Configurações de conversas
-    MAX_HISTORY_MESSAGES: 15,
+    // Configurações simplificadas
+    MAX_HISTORY_MESSAGES: 10,
     MAX_RESPONSE_TOKENS: 400,
-    HISTORY_CLEANUP_INTERVAL: 24 * 60 * 60 * 1000,  // 24 horas
-    MAX_STORED_BOT_MESSAGE_IDS: 100,
-    
-    // Intervalo de backup: 12 horas
-    BACKUP_INTERVAL: 12 * 60 * 60 * 1000,
+    MAX_STORED_BOT_MESSAGE_IDS: 1000,
+    HISTORY_CLEANUP_INTERVAL: 24 * 60 * 60 * 1000, // 24 horas em milissegundos
     
     // Função para obter o prompt do sistema
     getSystemPrompt: (isGroup) => {

@@ -1,13 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const AsyncLock = require('async-lock');
-const conversationSummarizer = require('../services/conversationSummarizer');
-const backupService = require('../services/backupService');
 const { 
     conversationHistoryFile, 
     MAX_HISTORY_MESSAGES,
-    HISTORY_CLEANUP_INTERVAL,
-    BACKUP_INTERVAL
+    HISTORY_CLEANUP_INTERVAL
 } = require('../config/config');
 
 // Garantir que o diretório existe
@@ -21,11 +18,10 @@ ensureDirectoryExists(conversationHistoryFile);
 
 // Sistema de gerenciamento de conversas
 const conversationManager = {
-    history: {}, // Usando um objeto ao invés de Map
+    history: {},
     saveCounter: 0,
-    lock: new AsyncLock({ timeout: 5000 }), // 5 segundos de timeout
+    lock: new AsyncLock({ timeout: 5000 }),
     hasChanges: false,
-    lastBackupTime: 0,
 
     // Salvar histórico de conversas
     saveHistory: async function(force = false) {
@@ -63,31 +59,9 @@ const conversationManager = {
                 console.log(`Histórico de conversas carregado para ${Object.keys(this.history).length} usuários`);
             } catch (error) {
                 console.error('Erro ao carregar histórico de conversas:', error);
-                await this.tryRestoreFromBackup();
-            }
-        }
-    },
-    
-    // Restaurar de backup
-    tryRestoreFromBackup: async function() {
-        const restored = await backupService.restoreFromBackup(conversationHistoryFile);
-        if (restored) {
-            try {
-                const historyData = JSON.parse(await fs.promises.readFile(conversationHistoryFile, 'utf8'));
-                this.history = historyData;
-                console.log('Histórico restaurado do backup');
-            } catch (error) {
-                console.error('Erro ao carregar backup restaurado:', error);
                 this.history = {};
             }
-        } else {
-            this.history = {};
         }
-    },
-    
-    // Criar backup do histórico
-    createBackup: async function() {
-        await backupService.createBackup(conversationHistoryFile);
     },
     
     // Adicionar mensagem ao histórico
@@ -129,8 +103,7 @@ const conversationManager = {
     
     // Limpeza de históricos antigos
     cleanupOldHistories: async function() {
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        const now = Date.now();
+        const now = Date.now(); 
         let cleanedCount = 0;
         
         await this.lock.acquire('cleanupHistory', async () => {
@@ -150,28 +123,7 @@ const conversationManager = {
         if (cleanedCount > 0) {
             console.log(`Limpeza concluída: ${cleanedCount} históricos removidos`);
             await this.saveHistory(true);
-            await this.createBackup();
         }
-    },
-    
-    // Resumir histórico para economizar tokens
-    summarizeHistory: async function(userId) {
-        if (!this.history[userId]) return;
-        
-        const userHistory = this.history[userId];
-        if (userHistory.length < MAX_HISTORY_MESSAGES) return;
-        
-        // Usa o novo serviço de resumo
-        const summarizedHistory = conversationSummarizer.summarize(
-            userHistory,
-            Math.floor(MAX_HISTORY_MESSAGES * 0.75)
-        );
-        
-        await this.lock.acquire('modifyHistory', () => {
-            this.history[userId] = summarizedHistory;
-            this.hasChanges = true;
-        });
-        await this.saveHistory(true);
     }
 };
 
@@ -196,25 +148,11 @@ const schedulePeriodicTask = (task, interval, taskName) => {
 };
 
 const scheduleCleanup = () => {
-    // Verifica se já foi feito backup recentemente antes de criar um novo
-    const now = Date.now();
-    const backupFile = `${conversationHistoryFile}.bak`;
-    
-    // Cria backup inicial se não existir ou se o último backup foi há mais de 1 hora
-    if (!fs.existsSync(backupFile) || (now - conversationManager.lastBackupTime >= 3600000)) {
-        conversationManager.createBackup();
-    }
-    
     const tasks = [
         {
             name: 'limpeza de históricos antigos',
             fn: () => conversationManager.cleanupOldHistories(),
             interval: HISTORY_CLEANUP_INTERVAL
-        },
-        {
-            name: 'backup do histórico',
-            fn: () => conversationManager.createBackup(),
-            interval: BACKUP_INTERVAL
         }
     ];
 
@@ -222,21 +160,16 @@ const scheduleCleanup = () => {
         schedulePeriodicTask(task.fn, task.interval, task.name)
     );
 
-    // Adicionar limpeza adequada para os intervalos
     process.on('SIGTERM', () => {
         intervals.forEach(clearInterval);
         process.exit(0);
     });
 };
 
-// Agendar backup periódico
-backupService.scheduleBackup(conversationHistoryFile, BACKUP_INTERVAL);
-
 module.exports = {
     addMessage: conversationManager.addMessage.bind(conversationManager),
     getUserConversation: conversationManager.getUserConversation.bind(conversationManager),
     clearUserHistory: conversationManager.clearUserHistory.bind(conversationManager),
     loadHistory: conversationManager.loadHistory.bind(conversationManager),
-    summarizeHistory: conversationManager.summarizeHistory.bind(conversationManager),
     scheduleCleanup
 };

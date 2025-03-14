@@ -1,7 +1,6 @@
 const fs = require('fs');
 const async = require('async');
 const { 
-    processedMessagesFile, 
     getSystemPrompt, 
     botNumber, 
     MAX_STORED_BOT_MESSAGE_IDS 
@@ -12,28 +11,7 @@ const utils = require('../utils/utils');
 const Sanitizer = require('../utils/sanitizer');
 
 const botMessageIds = new Set();
-let processedMessages = new Set();
 
-// Carregar mensagens processadas uma única vez
-try {
-    const storedMessages = fs.readFileSync(processedMessagesFile, 'utf8');
-    processedMessages = new Set(JSON.parse(storedMessages));
-} catch (error) {
-    console.error('Erro ao carregar mensagens processadas:', error);
-}
-
-// Função para registrar detalhes de erros
-const logErrorDetails = (error) => {
-    console.error('Detalhes do erro:', {
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-    });
-};
-
-/**
- * Envia uma mensagem do bot para o chat especificado
- */
 const sendBotMessage = async (socket, chatId, text) => {
     try {
         const sentMsg = await socket.sendMessage(chatId, { text });
@@ -51,9 +29,6 @@ const sendBotMessage = async (socket, chatId, text) => {
     }
 };
 
-/**
- * Manipula eventos de mensagens recebidas do WhatsApp
- */
 const handleMessageUpsert = async (socket, { messages, type }) => {
     if (type !== 'notify') return;
 
@@ -61,10 +36,6 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
         try {
             // Ignora mensagens do próprio bot
             if (msg.key.fromMe || botMessageIds.has(msg.key.id)) continue;
-
-            // Ignora mensagens já processadas
-            if (processedMessages.has(msg.key.id)) continue;
-            processedMessages.add(msg.key.id);
 
             const chatId = msg.key.remoteJid;
             const text = msg.message?.conversation || 
@@ -95,7 +66,6 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
     }
 };
 
-// Fila de mensagens para processar uma mensagem por vez
 const messageQueue = async.queue(async (task, callback) => {
     try {
         await processMessage(task.socket, task.data);
@@ -113,13 +83,8 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
     try {
         // Sanitiza todos os inputs
         const contextId = Sanitizer.sanitizeWhatsAppId(chatId);
-        let sanitizedText = Sanitizer.sanitizeMessage(text); // Mudado para let
-        const sanitizedSender = Sanitizer.sanitizeWhatsAppId(sender);
-        
-        // Exemplo de como os caracteres especiais são tratados:
-        // Input: "<script>alert('xss')</script>"
-        // Output: "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
-        
+        let sanitizedText = Sanitizer.sanitizeMessage(text);
+        const sanitizedSender = Sanitizer.sanitizeWhatsAppId(sender);   
         if (!contextId || !sanitizedText) {
             console.warn('Input inválido detectado');
             return;
@@ -132,8 +97,6 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
                                 botMessageIds.has(msg.message?.extendedTextMessage?.contextInfo?.stanzaId);
             
             if (!isMentioned && !isReplyToBot) return;
-            
-            sanitizedText = utils.extractMessageWithoutMention(sanitizedText);
         }
 
         // Verifica se é um comando
@@ -159,8 +122,6 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
         await sendBotMessage(socket, chatId, responseText);
     } catch (error) {
         console.error('Erro:', error);
-        logErrorDetails(error);
-        
         // Mensagem de erro para o usuário
         await sendBotMessage(
             socket, 
@@ -169,15 +130,6 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
         );
     }
 };
-
-// Salvar mensagens processadas periodicamente
-setInterval(() => {
-    try {
-        fs.writeFileSync(processedMessagesFile, JSON.stringify([...processedMessages]), 'utf8');
-    } catch (error) {
-        console.error('Erro ao salvar mensagens processadas:', error);
-    }
-}, 5 * 60 * 1000); // A cada 5 minutos
 
 module.exports = {
     messageQueue,

@@ -6,9 +6,6 @@ const isGroupChat = (jid) => jid.endsWith('@g.us');
 // Função para verificar se o bot foi mencionado
 const isBotMentioned = (text) => new RegExp(`\\b${botName}\\b`, 'i').test(text);
 
-// Função para extrair a mensagem sem a menção ao bot
-const extractMessageWithoutMention = (text) => text.replace(new RegExp(`\\b${botName}\\b`, 'ig'), '').trim();
-
 // Função para tratar comandos
 const handleCommand = async (text, chatId, contextId, clearHistory, sendMessage) => {
     const lowerText = text.toLowerCase();
@@ -36,4 +33,4 @@ const handleCommand = async (text, chatId, contextId, clearHistory, sendMessage)
     return false;
 };
 
-module.exports = { isGroupChat, isBotMentioned, extractMessageWithoutMention, handleCommand };
+module.exports = { isGroupChat, isBotMentioned, handleCommand };

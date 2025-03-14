@@ -1,8 +1,4 @@
-/**
- * Utilitário de sanitização de dados
- */
 class Sanitizer {
-    // Mapa de caracteres especiais HTML para escape
     static htmlEscapes = {
         '&': '&amp;',
         '<': '&lt;',
@@ -71,35 +67,6 @@ class Sanitizer {
             .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
             .replace(/\s+/g, '_')
             .trim();
-    }
-
-    /**
-     * Sanitiza URL
-     */
-    static sanitizeUrl(url) {
-        if (!url) return '';
-
-        try {
-            const parsed = new URL(String(url));
-            // Aceita apenas http e https
-            if (!['http:', 'https:'].includes(parsed.protocol)) {
-                return '';
-            }
-            return parsed.toString();
-        } catch {
-            return '';
-        }
-    }
-
-    /**
-     * Remove scripts e atributos perigosos de HTML
-     */
-    static sanitizeHtml(html) {
-        return String(html)
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/(on\w+)="[^"]*"/g, '')
-            .replace(/(on\w+)='[^']*'/g, '')
-            .replace(/javascript:[^\s]*/g, '');
     }
 }
 

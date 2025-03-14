@@ -61,7 +61,7 @@ const handleConnectionUpdate = ({ connection, qr, lastDisconnect }) => {
         if (statusCode === DisconnectReason.connectionReplaced) {
             // Caso o WhatsApp substitua a conexão, podemos apenas encerrar o bot sem reconectar
             console.log('Conexão substituída. O bot será encerrado.');
-            process.exit(0); // Encerra o processo, pois a sessão foi substituída
+            process.exit(0);
         }
 
         if (statusCode !== DisconnectReason.loggedOut && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
