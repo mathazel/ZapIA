@@ -34,6 +34,14 @@ const createRequiredDirectories = () => {
 // Criar diretórios na inicialização
 createRequiredDirectories();
 
+// Configurações do gerenciador de conversas
+const CONVERSATION_CONFIG = {
+    SAVE_INTERVAL: 5000, // 5 segundos
+    RETRY_SAVE_INTERVAL: 10000, // 10 segundos
+    MAX_HISTORY_PER_USER: 100, // Limite de mensagens por usuário
+    CLEANUP_INTERVAL: 24 * 60 * 60 * 1000, // 24 horas em milissegundos
+};
+
 // Exportando as configurações
 module.exports = {
     botNumber: process.env.BOT_NUMBER,

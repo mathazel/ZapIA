@@ -2,7 +2,6 @@ const whatsapp = require('./src/services/whatsapp');
 const conversation = require('./src/core/conversation');
 const fileManager = require('./src/utils/fileManager');
 const { conversationHistoryFile } = require('./src/config/config');
-const backupService = require('./src/services/backupService');
 
 // Inicialização
 (async () => {
@@ -17,7 +16,7 @@ const backupService = require('./src/services/backupService');
         await conversation.loadHistory();
         
         // Iniciar limpeza periódica
-        conversation.scheduleCleanup();
+        fileManager.scheduleCleanup();
         
         // Conectar ao WhatsApp
         await whatsapp.connect();
