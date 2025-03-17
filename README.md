@@ -8,7 +8,6 @@ A WhatsApp bot that uses OpenAI's API to provide intelligent responses in conver
 - 💬 Group and private chat support
 - 📝 Conversation history management
 - 🔄 Automatic conversation summarization
-- 💾 Periodic backups
 - ⚡ Command system
 - 🔐 Environment-based configuration
 
@@ -70,8 +69,7 @@ WhatsAppBot/
 │   │   └── message-handler.js
 │   ├── services/
 │   │   ├── openai.js
-│   │   ├── whatsapp.js
-│   │   └── backupService.js
+│   │   └── whatsapp.js
 │   └── utils/
 │       ├── fileManager.js
 │       ├── sanitizer.js
@@ -85,7 +83,6 @@ WhatsAppBot/
 
 - **Conversation Management**: Maintains conversation history with automatic cleanup
 - **Message Summarization**: Intelligently summarizes long conversations to maintain context
-- **Backup System**: Automatically creates backups of conversation history
 - **Error Handling**: Robust error handling with automatic reconnection
 - **Rate Limiting**: Implements rate limiting for API calls
 
