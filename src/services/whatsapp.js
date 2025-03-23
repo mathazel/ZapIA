@@ -1,3 +1,4 @@
+
 const { 
     makeWASocket, 
     useMultiFileAuthState, 
@@ -11,6 +12,8 @@ const {
     botName
 } = require('../config/config');
 const { handleMessageUpsert } = require('../core/message-handler');
+const { Crypto } = require('@peculiar/webcrypto');
+global.crypto = new Crypto();
 
 let currentSocket = null;
 let reconnectAttempts = 0;

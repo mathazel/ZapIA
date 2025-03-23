@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@peculiar/webcrypto": "^1.5.0",
     "@whiskeysockets/baileys": "^6.7.16",
     "async": "^3.2.6",
     "async-lock": "^1.4.1",
