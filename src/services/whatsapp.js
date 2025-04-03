@@ -1,4 +1,3 @@
-
 const { 
     makeWASocket, 
     useMultiFileAuthState, 
@@ -17,6 +16,7 @@ global.crypto = new Crypto();
 
 let currentSocket = null;
 let reconnectAttempts = 0;
+let isReconnecting = false;
 
 /**
  * Conecta ao WhatsApp
@@ -37,10 +37,9 @@ const connect = async () => {
             auth: state,
             printQRInTerminal: true,
             browser: ['Bot GPT', 'Chrome', '1.0.0'],
-            connectTimeoutMs: 30_000
+            connectTimeoutMs: 30_000 // Timeout de 30 segundos
         });
 
-        // Listeners para eventos de conexão
         currentSocket.ev.on('connection.update', handleConnectionUpdate);
         currentSocket.ev.on('creds.update', saveCreds);
         currentSocket.ev.on('messages.upsert', (data) => handleMessageUpsert(currentSocket, data));
@@ -48,7 +47,7 @@ const connect = async () => {
         console.log(`Bot WhatsApp conectado como "${botName}"`);
         return currentSocket;
     } catch (error) {
-        console.error('Erro crítico:', error);
+        console.error('Erro crítico ao conectar:', error);
         process.exit(1);
     }
 };
@@ -58,18 +57,25 @@ const connect = async () => {
  */
 const handleConnectionUpdate = ({ connection, qr, lastDisconnect }) => {
     if (connection === 'close') {
-        const statusCode = lastDisconnect.error?.output?.statusCode;
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
         console.log('Código de desconexão:', DisconnectReason[statusCode]);
 
         if (statusCode === DisconnectReason.connectionReplaced) {
-            // Caso o WhatsApp substitua a conexão, podemos apenas encerrar o bot sem reconectar
             console.log('Conexão substituída. O bot será encerrado.');
             process.exit(0);
         }
 
         if (statusCode !== DisconnectReason.loggedOut && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             reconnectWithBackoff();
+        } else {
+            console.error('Número máximo de tentativas de reconexão atingido ou usuário desconectado.');
+            process.exit(1);
         }
+    } else if (connection === 'open') {
+        console.log('Conexão restabelecida com sucesso!');
+        reconnectAttempts = 0; // Redefine o contador de tentativas
+    } else if (qr) {
+        qrcode.generate(qr, { small: true });
     }
 };
 
@@ -77,10 +83,17 @@ const handleConnectionUpdate = ({ connection, qr, lastDisconnect }) => {
  * Tenta reconectar com um backoff exponencial.
  */
 const reconnectWithBackoff = () => {
+    if (isReconnecting) return; // Evita múltiplas tentativas simultâneas
+    isReconnecting = true;
+
     const delay = Math.min(3000 * Math.pow(2, reconnectAttempts), 30000);
     console.log(`Tentativa ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS} em ${delay}ms`);
-    
-    setTimeout(connect, delay);
+
+    setTimeout(async () => {
+        await connect();
+        isReconnecting = false; // Libera para novas tentativas após reconexão
+    }, delay);
+
     reconnectAttempts++;
 };
 

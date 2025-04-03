@@ -77,27 +77,41 @@ const messageQueue = async.queue(async (task, callback) => {
 }, 1);
 
 /**
+ * Sanitiza os inputs da mensagem
+ */
+const sanitizeInputs = (chatId, text, sender) => ({
+    contextId: Sanitizer.sanitizeWhatsAppId(chatId),
+    sanitizedText: Sanitizer.sanitizeMessage(text),
+    sanitizedSender: Sanitizer.sanitizeWhatsAppId(sender)
+});
+
+/**
+ * Verifica se a mensagem em grupo é válida
+ */
+const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
+    if (!isGroup) return true;
+
+    const isMentioned = utils.isBotMentioned(sanitizedText);
+    const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === botNumber ||
+                         botMessageIds.has(msg.message?.extendedTextMessage?.contextInfo?.stanzaId);
+
+    return isMentioned || isReplyToBot;
+};
+
+/**
  * Processa uma mensagem da fila
  */
 const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) => {
     try {
-        // Sanitiza todos os inputs
-        const contextId = Sanitizer.sanitizeWhatsAppId(chatId);
-        let sanitizedText = Sanitizer.sanitizeMessage(text);
-        const sanitizedSender = Sanitizer.sanitizeWhatsAppId(sender);   
+        // Sanitiza os inputs
+        const { contextId, sanitizedText, sanitizedSender } = sanitizeInputs(chatId, text, sender);
         if (!contextId || !sanitizedText) {
             console.warn('Input inválido detectado');
             return;
         }
 
-        // Em grupos, só responde se for mencionado ou se for reply de uma mensagem do bot
-        if (isGroup) {
-            const isMentioned = utils.isBotMentioned(sanitizedText);
-            const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === botNumber ||
-                                botMessageIds.has(msg.message?.extendedTextMessage?.contextInfo?.stanzaId);
-            
-            if (!isMentioned && !isReplyToBot) return;
-        }
+        // Valida mensagens de grupo
+        if (!isGroupMessageValid(msg, sanitizedText, isGroup)) return;
 
         // Verifica se é um comando
         const isCommand = await utils.handleCommand(
@@ -122,7 +136,6 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
         await sendBotMessage(socket, chatId, responseText);
     } catch (error) {
         console.error('Erro:', error);
-        // Mensagem de erro para o usuário
         await sendBotMessage(
             socket, 
             chatId, 
