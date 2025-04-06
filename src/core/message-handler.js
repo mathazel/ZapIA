@@ -9,6 +9,7 @@ const conversation = require('./conversation');
 const openai = require('../services/openai');
 const utils = require('../utils/utils');
 const Sanitizer = require('../utils/sanitizer');
+const { trackEvent } = require('../../index');
 
 const botMessageIds = new Set();
 
@@ -25,6 +26,7 @@ const sendBotMessage = async (socket, chatId, text) => {
         return sentMsg;
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
+        trackEvent('error', error);
         throw error;
     }
 };
@@ -47,6 +49,9 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
             const isGroup = chatId.endsWith('@g.us');
             const sender = msg.key.participant || msg.key.remoteJid;
 
+            // Registra a mensagem recebida
+            trackEvent('message', { chatId, isGroup });
+
             // Adiciona à fila de processamento
             messageQueue.push({
                 socket,
@@ -61,6 +66,7 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
 
         } catch (error) {
             console.error('Erro ao processar mensagem:', error);
+            trackEvent('error', error);
             logErrorDetails(error);
         }
     }
@@ -71,6 +77,7 @@ const messageQueue = async.queue(async (task, callback) => {
         await processMessage(task.socket, task.data);
     } catch (error) {
         console.error('Erro ao processar mensagem:', error);
+        trackEvent('error', error);
     } finally {
         callback();
     }
@@ -102,6 +109,7 @@ const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
  * Processa uma mensagem da fila
  */
 const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) => {
+    const startTime = Date.now();
     try {
         // Sanitiza os inputs
         const { contextId, sanitizedText, sanitizedSender } = sanitizeInputs(chatId, text, sender);
@@ -134,8 +142,13 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) =>
 
         await conversation.addMessage(contextId, 'assistant', responseText);
         await sendBotMessage(socket, chatId, responseText);
+        
+        // Rastreia o tempo de resposta
+        const responseTime = Date.now() - startTime;
+        trackEvent('response', { time: responseTime, chatId });
     } catch (error) {
         console.error('Erro:', error);
+        trackEvent('error', error);
         await sendBotMessage(
             socket, 
             chatId, 
