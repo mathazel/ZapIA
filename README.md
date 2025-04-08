@@ -32,4 +32,4 @@ Esse projeto foi feito para simplificar interações via WhatsApp usando IA. A e
 
 ## Licença
 
-## LICENSE
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
