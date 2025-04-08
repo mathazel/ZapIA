@@ -9,7 +9,8 @@ const conversation = require('./conversation');
 const openai = require('../services/openai');
 const utils = require('../utils/utils');
 const Sanitizer = require('../utils/sanitizer');
-const { trackEvent } = require('../../index');
+const { trackEvent } = require('../utils/eventTracker');
+const healthMonitor = require('../utils/healthMonitor');
 
 const botMessageIds = new Set();
 
@@ -36,6 +37,9 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
 
     for (const msg of messages) {
         try {
+            // Atualiza o heartbeat ao processar mensagem
+            healthMonitor.updateHeartbeat();
+            
             // Ignora mensagens do próprio bot
             if (msg.key.fromMe || botMessageIds.has(msg.key.id)) continue;
 

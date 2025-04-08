@@ -2,7 +2,8 @@ const {
     makeWASocket, 
     useMultiFileAuthState, 
     fetchLatestBaileysVersion, 
-    DisconnectReason 
+    DisconnectReason,
+    Browsers
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const { 
@@ -25,10 +26,13 @@ let isReconnecting = false;
 const connect = async () => {
     try {
         if (currentSocket) {
+            console.log('Encerrando conexão anterior...');
             await currentSocket.end();
             currentSocket.ev.removeAllListeners();
+            currentSocket = null;
         }
 
+        console.log('Iniciando conexão com WhatsApp...');
         const { state, saveCreds } = await useMultiFileAuthState(authPath);
         const { version } = await fetchLatestBaileysVersion();
 
@@ -36,18 +40,42 @@ const connect = async () => {
             version,
             auth: state,
             printQRInTerminal: true,
-            browser: ['Bot GPT', 'Chrome', '1.0.0'],
-            connectTimeoutMs: 30_000 // Timeout de 30 segundos
+            browser: Browsers.ubuntu('Chrome'),
+            connectTimeoutMs: 60_000, // 60 segundos
+            qrTimeout: 40_000, // 40 segundos
+            defaultQueryTimeoutMs: 60_000, // 60 segundos
+            emitOwnEvents: true,
+            markOnlineOnConnect: true,
+            syncFullHistory: false
         });
 
-        currentSocket.ev.on('connection.update', handleConnectionUpdate);
+        // Registra handlers de eventos
+        currentSocket.ev.on('connection.update', (update) => handleConnectionUpdate(update, currentSocket));
         currentSocket.ev.on('creds.update', saveCreds);
         currentSocket.ev.on('messages.upsert', (data) => handleMessageUpsert(currentSocket, data));
+
+        // Log de eventos para debug
+        currentSocket.ev.on('messaging-history.set', () => {
+            console.log('Histórico de mensagens sincronizado');
+        });
+
+        currentSocket.ev.on('chats.set', () => {
+            console.log('Lista de chats sincronizada');
+        });
+
+        currentSocket.ev.on('contacts.set', () => {
+            console.log('Lista de contatos sincronizada');
+        });
 
         console.log(`Bot WhatsApp conectado como "${botName}"`);
         return currentSocket;
     } catch (error) {
         console.error('Erro crítico ao conectar:', error);
+        if (error.message.includes('closed') || error.message.includes('timeout')) {
+            console.log('Tentando reconectar após erro de conexão...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            return connect();
+        }
         process.exit(1);
     }
 };
@@ -55,26 +83,29 @@ const connect = async () => {
 /**
  * Lida com a atualização de conexão, incluindo reconexões.
  */
-const handleConnectionUpdate = ({ connection, qr, lastDisconnect }) => {
+const handleConnectionUpdate = ({ connection, qr, lastDisconnect }, socket) => {
     if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        console.log('Código de desconexão:', DisconnectReason[statusCode]);
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut && 
+                              statusCode !== DisconnectReason.connectionReplaced &&
+                              reconnectAttempts < MAX_RECONNECT_ATTEMPTS;
 
-        if (statusCode === DisconnectReason.connectionReplaced) {
-            console.log('Conexão substituída. O bot será encerrado.');
-            process.exit(0);
-        }
+        console.log('Conexão fechada. Código:', DisconnectReason[statusCode]);
+        console.log('Tentativas de reconexão:', reconnectAttempts);
+        console.log('Deve reconectar?', shouldReconnect);
 
-        if (statusCode !== DisconnectReason.loggedOut && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        if (shouldReconnect) {
             reconnectWithBackoff();
         } else {
-            console.error('Número máximo de tentativas de reconexão atingido ou usuário desconectado.');
+            console.error('Não é possível reconectar. Encerrando...');
             process.exit(1);
         }
     } else if (connection === 'open') {
-        console.log('Conexão restabelecida com sucesso!');
-        reconnectAttempts = 0; // Redefine o contador de tentativas
+        console.log('Conexão estabelecida com sucesso!');
+        reconnectAttempts = 0;
+        isReconnecting = false;
     } else if (qr) {
+        console.log('Novo QR Code gerado:');
         qrcode.generate(qr, { small: true });
     }
 };
@@ -83,18 +114,32 @@ const handleConnectionUpdate = ({ connection, qr, lastDisconnect }) => {
  * Tenta reconectar com um backoff exponencial.
  */
 const reconnectWithBackoff = () => {
-    if (isReconnecting) return; // Evita múltiplas tentativas simultâneas
-    isReconnecting = true;
+    if (isReconnecting) {
+        console.log('Já existe uma tentativa de reconexão em andamento...');
+        return;
+    }
 
-    const delay = Math.min(3000 * Math.pow(2, reconnectAttempts), 30000);
-    console.log(`Tentativa ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS} em ${delay}ms`);
+    isReconnecting = true;
+    reconnectAttempts++;
+
+    const delay = Math.min(3000 * Math.pow(2, reconnectAttempts - 1), 30000);
+    console.log(`Tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} em ${delay}ms`);
 
     setTimeout(async () => {
-        await connect();
-        isReconnecting = false; // Libera para novas tentativas após reconexão
+        try {
+            await connect();
+        } catch (error) {
+            console.error('Erro na tentativa de reconexão:', error);
+            isReconnecting = false;
+            
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectWithBackoff();
+            } else {
+                console.error('Número máximo de tentativas atingido. Encerrando...');
+                process.exit(1);
+            }
+        }
     }, delay);
-
-    reconnectAttempts++;
 };
 
 module.exports = {

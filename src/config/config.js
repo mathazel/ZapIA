@@ -47,17 +47,20 @@ module.exports = {
     botNumber: process.env.BOT_NUMBER,
     botName: process.env.BOT_NAME,
     openaiApiKey: process.env.OPENAI_API_KEY,
-    openaiModel: process.env.OPENAI_MODEL,
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-4',
     
     // Caminhos de arquivos
     conversationHistoryFile: path.join(dataDir, 'conversationHistory.json'),
     authPath: authDir,
 
-    // Configurações simplificadas
+    // Configurações do bot
     MAX_HISTORY_MESSAGES: 10,
     MAX_RESPONSE_TOKENS: 400,
     MAX_STORED_BOT_MESSAGE_IDS: 1000,
     HISTORY_CLEANUP_INTERVAL: 24 * 60 * 60 * 1000, // 24 horas em milissegundos
+    MAX_RECONNECT_ATTEMPTS: 10, // Número máximo de tentativas de reconexão
+    SAVE_INTERVAL: 5000, // 5 segundos
+    RETRY_SAVE_INTERVAL: 10000, // 10 segundos
     
     // Função para obter o prompt do sistema
     getSystemPrompt: (isGroup) => {
