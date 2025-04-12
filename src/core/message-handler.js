@@ -1,9 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 const async = require('async');
-const { 
-    getSystemPrompt, 
-    botNumber, 
-    MAX_STORED_BOT_MESSAGE_IDS 
+const {
+    getSystemPrompt,
+    botNumber,
+    MAX_STORED_BOT_MESSAGE_IDS
 } = require('../config/config');
 const conversation = require('./conversation');
 const openai = require('../services/openai');
@@ -14,9 +15,44 @@ const healthMonitor = require('../utils/healthMonitor');
 
 const botMessageIds = new Set();
 
+// Registra detalhes do erro para debug
+const logErrorDetails = (error) => {
+    const errorDetails = {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+    };
+
+    console.error('Detalhes do erro:', JSON.stringify(errorDetails, null, 2));
+
+    // Salva em arquivo de log
+    const logDir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    const logFile = path.join(logDir, 'error.log');
+    fs.appendFile(logFile, JSON.stringify(errorDetails) + '\n', (err) => {
+        if (err) console.error('Erro ao salvar log:', err);
+    });
+};
+
 const sendBotMessage = async (socket, chatId, text) => {
     try {
+        // Mostra indicador de digitação para melhorar experiência
+        await socket.sendPresenceUpdate('composing', chatId);
+
+        // Pequeno delay para simular digitação natural
+        const typingDelay = Math.min(text.length * 10, 2000);
+        await new Promise(resolve => setTimeout(resolve, typingDelay));
+
+        // Envia a mensagem
         const sentMsg = await socket.sendMessage(chatId, { text });
+
+        // Marca como lida após enviar
+        await socket.sendReadReceipt(chatId, null, [sentMsg.key.id]);
+
+        // Gerencia cache de IDs de mensagens do bot
         if (sentMsg?.key?.id) {
             botMessageIds.add(sentMsg.key.id);
             if (botMessageIds.size > MAX_STORED_BOT_MESSAGE_IDS) {
@@ -24,6 +60,10 @@ const sendBotMessage = async (socket, chatId, text) => {
                 botMessageIds.delete(oldestId);
             }
         }
+
+        // Volta ao estado disponível
+        await socket.sendPresenceUpdate('available', chatId);
+
         return sentMsg;
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
@@ -37,36 +77,55 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
 
     for (const msg of messages) {
         try {
-            // Atualiza o heartbeat ao processar mensagem
+            // Atualiza status de saúde do sistema
             healthMonitor.updateHeartbeat();
-            
-            // Ignora mensagens do próprio bot
+
+            // Pula mensagens enviadas pelo próprio bot
             if (msg.key.fromMe || botMessageIds.has(msg.key.id)) continue;
 
             const chatId = msg.key.remoteJid;
-            const text = msg.message?.conversation || 
-                        msg.message?.extendedTextMessage?.text ||
-                        msg.message?.imageMessage?.caption || '';
-
-            if (!text) continue;
-
             const isGroup = chatId.endsWith('@g.us');
             const sender = msg.key.participant || msg.key.remoteJid;
 
             // Registra a mensagem recebida
             trackEvent('message', { chatId, isGroup });
 
-            // Adiciona à fila de processamento
-            messageQueue.push({
+            // Prepara dados para processamento
+            let messageData = {
                 socket,
                 data: {
                     msg,
-                    text,
                     chatId,
                     isGroup,
                     sender
                 }
-            });
+            };
+
+            // Identifica o tipo de mensagem e extrai dados relevantes
+            if (msg.message?.conversation || msg.message?.extendedTextMessage?.text) {
+                // Texto simples ou com formatação
+                const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+                messageData.data.text = text;
+                messageData.data.type = 'text';
+            }
+            else if (msg.message?.imageMessage) {
+                // Imagem (com ou sem legenda)
+                messageData.data.type = 'image';
+                messageData.data.imageUrl = msg.message.imageMessage.url;
+                messageData.data.caption = msg.message.imageMessage.caption || '';
+            }
+            else if (msg.message?.audioMessage) {
+                // Áudio/mensagem de voz
+                messageData.data.type = 'audio';
+                messageData.data.audioUrl = msg.message.audioMessage.url;
+            }
+            else {
+                // Pula tipos não suportados (vídeo, documentos, etc)
+                continue;
+            }
+
+            // Adiciona à fila de processamento
+            messageQueue.push(messageData);
 
         } catch (error) {
             console.error('Erro ao processar mensagem:', error);
@@ -87,18 +146,14 @@ const messageQueue = async.queue(async (task, callback) => {
     }
 }, 1);
 
-/**
- * Sanitiza os inputs da mensagem
- */
+// Limpa e valida os dados da mensagem
 const sanitizeInputs = (chatId, text, sender) => ({
     contextId: Sanitizer.sanitizeWhatsAppId(chatId),
-    sanitizedText: Sanitizer.sanitizeMessage(text),
+    sanitizedText: Sanitizer.sanitizeMessage(text || ''),
     sanitizedSender: Sanitizer.sanitizeWhatsAppId(sender)
 });
 
-/**
- * Verifica se a mensagem em grupo é válida
- */
+// Verifica se o bot deve responder a uma mensagem de grupo
 const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
     if (!isGroup) return true;
 
@@ -109,54 +164,93 @@ const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
     return isMentioned || isReplyToBot;
 };
 
-/**
- * Processa uma mensagem da fila
- */
-const processMessage = async (socket, { msg, text, chatId, isGroup, sender }) => {
+// Processa mensagens da fila e gera respostas
+const processMessage = async (socket, { msg, text, chatId, isGroup, sender, type, imageUrl, caption, audioUrl }) => {
     const startTime = Date.now();
     try {
-        // Sanitiza os inputs
+        // Limpa e valida os dados recebidos
         const { contextId, sanitizedText, sanitizedSender } = sanitizeInputs(chatId, text, sender);
-        if (!contextId || !sanitizedText) {
-            console.warn('Input inválido detectado');
+        if (!contextId) {
+            console.warn('Dados inválidos na mensagem');
             return;
         }
 
-        // Valida mensagens de grupo
-        if (!isGroupMessageValid(msg, sanitizedText, isGroup)) return;
+        // Em grupos, só responde quando mencionado ou em resposta direta
+        if (type === 'text' && !isGroupMessageValid(msg, sanitizedText, isGroup)) return;
 
-        // Verifica se é um comando
-        const isCommand = await utils.handleCommand(
-            sanitizedText, 
-            chatId, 
-            contextId, 
-            conversation.clearUserHistory, 
-            (chatId, text) => sendBotMessage(socket, chatId, text)
-        );
-        if (isCommand) return;
+        // Processa comandos especiais (como limpar histórico)
+        if (type === 'text') {
+            const isCommand = await utils.handleCommand(
+                sanitizedText,
+                chatId,
+                contextId,
+                conversation.clearUserHistory,
+                (chatId, text) => sendBotMessage(socket, chatId, text)
+            );
+            if (isCommand) return; // Encerra se foi um comando válido
+        }
 
-        // Processamento normal da mensagem
-        const userMessage = isGroup ? `[${sanitizedSender.split('@')[0]}]: ${sanitizedText}` : sanitizedText;
-        await conversation.addMessage(contextId, 'user', userMessage);
+        // Prepara variáveis para processamento
+        let userMessage = '';
+        let responseText = '';
 
-        const userConversation = await conversation.getUserConversation(contextId);
-        const messagesForAPI = [getSystemPrompt(isGroup), ...userConversation];
-        
-        const responseText = await openai.getResponse(messagesForAPI);
+        if (type === 'text') {
+            // Formata mensagem de texto (com identificação do remetente em grupos)
+            userMessage = isGroup ? `[${sanitizedSender.split('@')[0]}]: ${sanitizedText}` : sanitizedText;
+            conversation.addMessage(contextId, 'user', userMessage);
 
-        await conversation.addMessage(contextId, 'assistant', responseText);
+            // Obtém histórico e gera resposta
+            const userConversation = await conversation.getUserConversation(contextId);
+            const messagesForAPI = [getSystemPrompt(isGroup), ...userConversation];
+
+            responseText = await openai.getResponse(messagesForAPI);
+        }
+        else if (type === 'image') {
+            // Formata mensagem para imagem recebida
+            userMessage = isGroup
+                ? `[${sanitizedSender.split('@')[0]}]: [Enviou uma imagem${caption ? ` com legenda: "${caption}"` : ''}]`
+                : `[Enviou uma imagem${caption ? ` com legenda: "${caption}"` : ''}]`;
+
+            conversation.addMessage(contextId, 'user', userMessage);
+
+            // Obtém histórico e gera resposta
+            const userConversation = await conversation.getUserConversation(contextId);
+            const messagesForAPI = [getSystemPrompt(isGroup), ...userConversation];
+
+            responseText = await openai.getResponse(messagesForAPI);
+        }
+        else if (type === 'audio') {
+            // Formata mensagem para áudio recebido
+            userMessage = isGroup
+                ? `[${sanitizedSender.split('@')[0]}]: [Enviou um áudio]`
+                : `[Enviou um áudio]`;
+
+            conversation.addMessage(contextId, 'user', userMessage);
+
+            // Obtém histórico e gera resposta
+            const userConversation = await conversation.getUserConversation(contextId);
+            const messagesForAPI = [getSystemPrompt(isGroup), ...userConversation];
+
+            responseText = await openai.getResponse(messagesForAPI);
+        }
+
+        // Salva a resposta no histórico e envia para o usuário
+        conversation.addMessage(contextId, 'assistant', responseText);
         await sendBotMessage(socket, chatId, responseText);
-        
-        // Rastreia o tempo de resposta
+
+        // Registra métricas de desempenho
         const responseTime = Date.now() - startTime;
-        trackEvent('response', { time: responseTime, chatId });
+        trackEvent('response', { time: responseTime, chatId, type });
     } catch (error) {
         console.error('Erro:', error);
         trackEvent('error', error);
+        logErrorDetails(error);
+
+        // Mensagem de erro mais amigável e informativa
         await sendBotMessage(
-            socket, 
-            chatId, 
-            "Desculpe, não consegui processar sua mensagem no momento. Por favor, tente novamente em alguns instantes."
+            socket,
+            chatId,
+            "Ops! Estou com dificuldades para processar sua mensagem agora. É algo temporário, pode tentar novamente daqui a pouco? Se o problema persistir, tente enviar de outra forma."
         );
     }
 };
