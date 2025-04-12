@@ -39,8 +39,15 @@ const logErrorDetails = (error) => {
 
 const sendBotMessage = async (socket, chatId, text) => {
     try {
-        // Mostra indicador de digitação para melhorar experiência
-        await socket.sendPresenceUpdate('composing', chatId);
+        // Tenta mostrar indicador de digitação (se suportado pela API)
+        try {
+            if (socket.sendPresenceUpdate) {
+                await socket.sendPresenceUpdate('composing', chatId);
+            }
+        } catch (err) {
+            // Ignora erro se o método não estiver disponível
+            console.log('Indicador de digitação não suportado');
+        }
 
         // Pequeno delay para simular digitação natural
         const typingDelay = Math.min(text.length * 10, 2000);
@@ -49,8 +56,7 @@ const sendBotMessage = async (socket, chatId, text) => {
         // Envia a mensagem
         const sentMsg = await socket.sendMessage(chatId, { text });
 
-        // Marca como lida após enviar
-        await socket.sendReadReceipt(chatId, null, [sentMsg.key.id]);
+        // Nota: Funcionalidade de marcar como lida removida pois não é suportada pela API atual
 
         // Gerencia cache de IDs de mensagens do bot
         if (sentMsg?.key?.id) {
@@ -61,8 +67,14 @@ const sendBotMessage = async (socket, chatId, text) => {
             }
         }
 
-        // Volta ao estado disponível
-        await socket.sendPresenceUpdate('available', chatId);
+        // Tenta voltar ao estado disponível (se suportado pela API)
+        try {
+            if (socket.sendPresenceUpdate) {
+                await socket.sendPresenceUpdate('available', chatId);
+            }
+        } catch (err) {
+            // Ignora erro se o método não estiver disponível
+        }
 
         return sentMsg;
     } catch (error) {
@@ -165,7 +177,7 @@ const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
 };
 
 // Processa mensagens da fila e gera respostas
-const processMessage = async (socket, { msg, text, chatId, isGroup, sender, type, imageUrl, caption, audioUrl }) => {
+const processMessage = async (socket, { msg, text, chatId, isGroup, sender, type, caption }) => {
     const startTime = Date.now();
     try {
         // Limpa e valida os dados recebidos
