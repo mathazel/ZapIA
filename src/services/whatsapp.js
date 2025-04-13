@@ -1,13 +1,13 @@
-const { 
-    makeWASocket, 
-    useMultiFileAuthState, 
-    fetchLatestBaileysVersion, 
+const {
+    makeWASocket,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion,
     DisconnectReason,
     Browsers
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
-const { 
-    authPath, 
+const {
+    authPath,
     MAX_RECONNECT_ATTEMPTS,
     botName
 } = require('../config/config');
@@ -20,8 +20,8 @@ let reconnectAttempts = 0;
 let isReconnecting = false;
 
 /**
- * Conecta ao WhatsApp
- * @returns {Promise<Object>} - Socket conectado
+ * Estabelece conexão com a API do WhatsApp
+ * @returns {Promise<Object>} Socket da conexão ativa
  */
 const connect = async () => {
     try {
@@ -81,12 +81,14 @@ const connect = async () => {
 };
 
 /**
- * Lida com a atualização de conexão, incluindo reconexões.
+ * Gerencia eventos de conexão e reconexão
+ * @param {Object} param0 Objeto com dados da conexão
+ * @param {Object} socket Socket ativo
  */
 const handleConnectionUpdate = ({ connection, qr, lastDisconnect }, socket) => {
     if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut && 
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut &&
                               statusCode !== DisconnectReason.connectionReplaced &&
                               reconnectAttempts < MAX_RECONNECT_ATTEMPTS;
 
@@ -111,7 +113,7 @@ const handleConnectionUpdate = ({ connection, qr, lastDisconnect }, socket) => {
 };
 
 /**
- * Tenta reconectar com um backoff exponencial.
+ * Implementa reconexão com backoff exponencial
  */
 const reconnectWithBackoff = () => {
     if (isReconnecting) {
@@ -131,7 +133,7 @@ const reconnectWithBackoff = () => {
         } catch (error) {
             console.error('Erro na tentativa de reconexão:', error);
             isReconnecting = false;
-            
+
             if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                 reconnectWithBackoff();
             } else {

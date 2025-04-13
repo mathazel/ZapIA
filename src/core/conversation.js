@@ -3,7 +3,8 @@ const path = require('path');
 const config = require('../config/config');
 
 /**
- * Gerencia o histórico de conversas do bot com persistência em arquivo
+ * Sistema de gerenciamento de conversas com persistência
+ * Mantém o histórico de mensagens e gerencia o ciclo de vida dos dados
  */
 class ConversationManager {
   constructor() {
@@ -12,12 +13,13 @@ class ConversationManager {
     this.saveInterval = config.SAVE_INTERVAL || 5000;
     this.dirty = false;
     this._saveTimeout = null;
-    
+
     this.loadHistory();
   }
 
   /**
-   * Carrega histórico do arquivo, criando-o se não existir
+   * Inicializa o histórico a partir do armazenamento
+   * Cria arquivo de histórico caso não exista
    */
   async loadHistory() {
     try {
@@ -37,7 +39,11 @@ class ConversationManager {
   }
 
   /**
-   * Adiciona mensagem ao histórico do usuário
+   * Registra nova mensagem no histórico
+   * @param {string} userId Identificador do usuário
+   * @param {string} role Origem da mensagem (user/assistant)
+   * @param {string} content Conteúdo da mensagem
+   * @returns {Object|null} Mensagem adicionada ou null se inválida
    */
   addMessage(userId, role, content) {
     if (!userId || !role || !content) {
@@ -48,26 +54,27 @@ class ConversationManager {
     if (!this.history[userId]) {
       this.history[userId] = [];
     }
-    
+
     if (this.history[userId].length >= config.MAX_HISTORY_PER_USER) {
       this.history[userId] = this.history[userId].slice(-config.MAX_HISTORY_PER_USER + 1);
     }
-    
+
     const message = { role, content, timestamp: Date.now() };
     this.history[userId].push(message);
     this.dirty = true;
     this.saveHistory();
-    
+
     return message;
   }
 
   /**
-   * Salva histórico usando arquivo temporário para evitar corrupção
+   * Persiste histórico em disco com proteção contra corrupção
+   * @param {boolean} force Força salvamento imediato ignorando intervalo
    */
   async saveHistory(force = false) {
     const now = Date.now();
     if (!force && !this.dirty) return;
-    
+
     if (!force && now - this.lastSave < this.saveInterval) {
       if (!this._saveTimeout) {
         this._saveTimeout = setTimeout(() => {
@@ -77,19 +84,19 @@ class ConversationManager {
       }
       return;
     }
-    
+
     if (this._saveTimeout) {
       clearTimeout(this._saveTimeout);
       this._saveTimeout = null;
     }
-    
+
     try {
       const historyToSave = JSON.stringify(this.history, null, 2);
       const tempFile = `${config.conversationHistoryFile}.tmp`;
-      
+
       await fs.writeFile(tempFile, historyToSave, 'utf8');
       await fs.rename(tempFile, config.conversationHistoryFile);
-      
+
       this.lastSave = now;
       this.dirty = false;
     } catch (error) {
@@ -113,7 +120,8 @@ class ConversationManager {
   }
 
   /**
-   * Remove históricos inativos por mais de maxAge (padrão 24h)
+   * Remove conversas inativas
+   * @param {number} maxAge Tempo máximo de inatividade em ms (padrão 24h)
    */
   async cleanupOldHistories(maxAge = 24 * 60 * 60 * 1000) {
     const now = Date.now();
@@ -135,7 +143,7 @@ class ConversationManager {
       await this.saveHistory(true);
     }
   }
-  
+
   async close() {
     if (this.dirty) {
       await this.saveHistory(true);

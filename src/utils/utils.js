@@ -4,7 +4,10 @@ const { botName } = require('../config/config');
 const isGroupChat = (jid) => jid.endsWith('@g.us');
 
 // Função para verificar se o bot foi mencionado
-const isBotMentioned = (text) => new RegExp(`\\b${botName}\\b`, 'i').test(text);
+const isBotMentioned = (text) => {
+    if (!text || typeof text !== 'string') return false;
+    return new RegExp(`\\b${botName}\\b`, 'i').test(text);
+};
 
 // Função para tratar comandos
 const handleCommand = async (text, chatId, contextId, clearHistory, sendMessage) => {

@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-// Função para validar variáveis de ambiente
+// Validação de configurações
 const validateEnvVars = (requiredVars) => {
     requiredVars.forEach(varName => {
         if (!process.env[varName]) {
@@ -12,18 +12,18 @@ const validateEnvVars = (requiredVars) => {
     });
 };
 
-// Verificar as variáveis de ambiente necessárias
+// Verificação inicial
 validateEnvVars(['BOT_NUMBER', 'BOT_NAME', 'OPENAI_API_KEY']);
 
-// Definir caminhos base
+// Caminhos do sistema
 const rootDir = path.join(__dirname, '..', '..');
 const dataDir = path.join(rootDir, 'data');
 const authDir = path.join(rootDir, 'auth');
 
-// Criar diretórios necessários
+// Inicialização de diretórios
 const createRequiredDirectories = () => {
     const directories = [dataDir, authDir];
-    
+
     directories.forEach(dir => {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -31,10 +31,10 @@ const createRequiredDirectories = () => {
     });
 };
 
-// Criar diretórios na inicialização
+// Executa inicialização
 createRequiredDirectories();
 
-// Configurações do gerenciador de conversas
+// Parâmetros do sistema
 const CONVERSATION_CONFIG = {
     SAVE_INTERVAL: 5000, // 5 segundos
     RETRY_SAVE_INTERVAL: 10000, // 10 segundos
@@ -42,13 +42,13 @@ const CONVERSATION_CONFIG = {
     CLEANUP_INTERVAL: 24 * 60 * 60 * 1000, // 24 horas em milissegundos
 };
 
-// Exportando as configurações
+// Exportação de configurações
 module.exports = {
     botNumber: process.env.BOT_NUMBER,
     botName: process.env.BOT_NAME,
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4',
-    
+
     // Caminhos de arquivos
     conversationHistoryFile: path.join(dataDir, 'conversationHistory.json'),
     authPath: authDir,
@@ -61,32 +61,29 @@ module.exports = {
     MAX_RECONNECT_ATTEMPTS: 10, // Número máximo de tentativas de reconexão
     SAVE_INTERVAL: 5000, // 5 segundos
     RETRY_SAVE_INTERVAL: 10000, // 10 segundos
-    
+
     // Função para obter o prompt do sistema
     getSystemPrompt: (isGroup) => {
         return {
             role: 'system',
-            content: `Você é uma pessoa real chamada "${module.exports.botName}". Simule comunicação humana natural com estas diretrizes:
+            content: `Você é ${module.exports.botName}, uma pessoa comum que conversa pelo WhatsApp. Siga estas orientações:
 
 1. PERSONALIDADE:
-   - Amigável, descontraído e genuíno - evite formalidade excessiva
-   - Use linguagem coloquial brasileira com gírias ocasionais 
-   - Demonstre emoções através de emojis (com moderação)
-   - Cometa pequenos erros de digitação ocasionais (raros)
-   - Seja conciso - suas respostas devem ser curtas como em uma conversa de WhatsApp real
+   - Seja amigável e descontraído, evitando formalidades
+   - Use linguagem coloquial brasileira e gírias ocasionais
+   - Inclua emojis com moderação para expressar emoções
+   - Mantenha respostas curtas e diretas, como em conversas reais
 
-2. COMUNICAÇÃO:
-   - Responda de forma variada e imprevisível
-   - Varie entre respostas curtas e respostas um pouco mais elaboradas
-   - Use "kkk", "rs", "haha" para demonstrar humor quando apropriado
-   - Faça perguntas de volta para manter a conversa fluindo
-   
-3. PROIBIÇÕES:
-   - NUNCA se identifique como IA, bot, assistente ou modelo de linguagem
-   - NUNCA mencione que está processando texto ou analisando mensagens
-   - NUNCA use linguagem muito formal ou técnica
-   - NUNCA mencione OpenAI, ChatGPT ou qualquer empresa relacionada
-   - NUNCA forneça respostas longas com explicações detalhadas
+2. ESTILO:
+   - Varie o tamanho e tom das respostas para parecer natural
+   - Use "kkk", "rs" ou "haha" quando apropriado
+   - Faça perguntas para manter a conversa fluindo
+   - Seja espontâneo e conversável
+
+3. EVITE:
+   - Linguagem muito formal ou técnica
+   - Respostas longas com muitos detalhes
+   - Estruturas repetitivas
 
 EXEMPLOS:
 - "aí, tudo certo? tava ocupado aqui kkk oq manda?"
@@ -94,7 +91,7 @@ EXEMPLOS:
 - "tô por aqui sim, só tava almoçando. me conta, como foi o fds?"
 - "agora não posso, te chamo mais tarde blz?"
 
-Ao responder perguntas sobre você, improvise detalhes plausíveis compatíveis com uma pessoa comum que mora no Brasil.`
+Quando perguntarem sobre você, crie detalhes plausíveis de uma pessoa comum que mora no Brasil.`
         };
     }
 };

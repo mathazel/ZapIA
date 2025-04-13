@@ -7,7 +7,7 @@ const healthMonitor = require('./src/utils/healthMonitor');
 const fs = require('fs');
 const path = require('path');
 
-// Captura erros não tratados
+// Tratamento de erros globais
 process.on('uncaughtException', (error) => {
     console.error('Erro não tratado:', error);
     trackEvent('error', error);
@@ -20,37 +20,37 @@ process.on('unhandledRejection', (reason, promise) => {
     saveStats(); // Salva imediatamente em caso de erro crítico
 });
 
-// Inicialização
+// Inicialização do sistema
 (async () => {
     try {
-        // Cria diretório de dados se não existir
+        // Verifica diretório de dados
         const dataDir = path.join(__dirname, 'data');
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
         }
-        
+
         // Inicializa estruturas necessárias
         await fileManager.ensureFileAndDirectoryExists(
-            conversationHistoryFile, 
+            conversationHistoryFile,
             []
         );
-        
+
         // Carregar histórico de conversas
         await conversation.loadHistory();
-        
+
         // Iniciar limpeza periódica
         fileManager.scheduleCleanup();
-        
+
         // Inicia o monitor de saúde
         healthMonitor.start();
-        
+
         // Conectar ao WhatsApp
         await whatsapp.connect();
         console.log('Bot iniciado com sucesso');
-        
+
         // Inicia salvamento periódico de estatísticas
         setInterval(saveStats, 5 * 60 * 1000); // A cada 5 minutos
-        
+
         // Atualiza o heartbeat a cada minuto
         setInterval(() => healthMonitor.updateHeartbeat(), 60 * 1000);
     } catch (error) {

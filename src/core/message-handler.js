@@ -15,7 +15,7 @@ const healthMonitor = require('../utils/healthMonitor');
 
 const botMessageIds = new Set();
 
-// Registra detalhes do erro para debug
+// Registra erros detalhados para análise posterior
 const logErrorDetails = (error) => {
     const errorDetails = {
         message: error.message,
@@ -39,13 +39,13 @@ const logErrorDetails = (error) => {
 
 const sendBotMessage = async (socket, chatId, text) => {
     try {
-        // Tenta mostrar indicador de digitação (se suportado pela API)
+        // Exibe indicador de digitação
         try {
             if (socket.sendPresenceUpdate) {
                 await socket.sendPresenceUpdate('composing', chatId);
             }
         } catch (err) {
-            // Ignora erro se o método não estiver disponível
+            // Continua mesmo se o recurso não estiver disponível
             console.log('Indicador de digitação não suportado');
         }
 
@@ -56,7 +56,7 @@ const sendBotMessage = async (socket, chatId, text) => {
         // Envia a mensagem
         const sentMsg = await socket.sendMessage(chatId, { text });
 
-        // Nota: Funcionalidade de marcar como lida removida pois não é suportada pela API atual
+        // Funcionalidade de marcar como lida não disponível na API atual
 
         // Gerencia cache de IDs de mensagens do bot
         if (sentMsg?.key?.id) {
@@ -125,11 +125,15 @@ const handleMessageUpsert = async (socket, { messages, type }) => {
                 messageData.data.type = 'image';
                 messageData.data.imageUrl = msg.message.imageMessage.url;
                 messageData.data.caption = msg.message.imageMessage.caption || '';
+                // Usa a legenda como texto para verificar menções
+                messageData.data.text = msg.message.imageMessage.caption || '';
             }
             else if (msg.message?.audioMessage) {
                 // Áudio/mensagem de voz
                 messageData.data.type = 'audio';
                 messageData.data.audioUrl = msg.message.audioMessage.url;
+                // Áudio não tem texto, mas precisamos de um valor para verificar menções
+                messageData.data.text = '';
             }
             else {
                 // Pula tipos não suportados (vídeo, documentos, etc)
@@ -158,25 +162,28 @@ const messageQueue = async.queue(async (task, callback) => {
     }
 }, 1);
 
-// Limpa e valida os dados da mensagem
+// Sanitiza dados de entrada
 const sanitizeInputs = (chatId, text, sender) => ({
     contextId: Sanitizer.sanitizeWhatsAppId(chatId),
     sanitizedText: Sanitizer.sanitizeMessage(text || ''),
     sanitizedSender: Sanitizer.sanitizeWhatsAppId(sender)
 });
 
-// Verifica se o bot deve responder a uma mensagem de grupo
+// Valida mensagens de grupo
 const isGroupMessageValid = (msg, sanitizedText, isGroup) => {
     if (!isGroup) return true;
 
+    // Verifica se o bot foi mencionado no texto ou legenda
     const isMentioned = utils.isBotMentioned(sanitizedText);
+
+    // Verifica se é uma resposta a uma mensagem do bot
     const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === botNumber ||
                          botMessageIds.has(msg.message?.extendedTextMessage?.contextInfo?.stanzaId);
 
     return isMentioned || isReplyToBot;
 };
 
-// Processa mensagens da fila e gera respostas
+// Processa mensagens e gera respostas
 const processMessage = async (socket, { msg, text, chatId, isGroup, sender, type, caption }) => {
     const startTime = Date.now();
     try {
@@ -188,7 +195,7 @@ const processMessage = async (socket, { msg, text, chatId, isGroup, sender, type
         }
 
         // Em grupos, só responde quando mencionado ou em resposta direta
-        if (type === 'text' && !isGroupMessageValid(msg, sanitizedText, isGroup)) return;
+        if (isGroup && !isGroupMessageValid(msg, sanitizedText, isGroup)) return;
 
         // Processa comandos especiais (como limpar histórico)
         if (type === 'text') {
