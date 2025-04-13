@@ -3,17 +3,8 @@
     "@peculiar/webcrypto": "^1.5.0",
     "@whiskeysockets/baileys": "^6.7.16",
     "async": "^3.2.6",
-    "async-lock": "^1.4.1",
-    "axios": "^1.6.7",
     "dotenv": "^16.4.7",
-    "form-data": "^4.0.0",
-    "mime-types": "^2.1.35",
     "openai": "^4.87.3",
-    "qrcode-terminal": "^0.12.0",
-    "sharp": "^0.33.5"
-  },
-  "devDependencies": {
-    "sinon": "^15.0.0",
-    "tape": "^5.9.0"
+    "qrcode-terminal": "^0.12.0"
   }
 }
